@@ -24,3 +24,8 @@ assets/
 *.njsproj
 *.sln
 *.sw?
+
+# Project Context and Logs
+.agent/
+memory-bank/
+lint_output.txt
