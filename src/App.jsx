@@ -10,9 +10,12 @@ import { summarizeAbstract } from './services/summarizer';
 import { useLocalStorage } from './hooks/useLocalStorage';
 import VaultPage from './pages/VaultPage';
 import ExplorePage from './pages/ExplorePage';
+import LoginPage from './pages/LoginPage';
+import BookmarkModal from './components/BookmarkModal';
 import { auth, loginWithGitHub, logout } from './services/firebase';
 import { findOrCreateGist, pullFromCloud, pushToCloud } from './services/githubSync';
 import ProfilePage from './pages/ProfilePage';
+import logo from './assets/Logo.png';
 import './App.css';
 
 function App() {
@@ -21,6 +24,11 @@ function App() {
   const [activeFilter, setActiveFilter] = useState(timeFilters[1]); // Weekly
 
   const [repos, setRepos] = useState([]);
+  const [visibleHorizontalCount, setVisibleHorizontalCount] = useState(5);
+  const [visibleVerticalCount, setVisibleVerticalCount] = useState(10);
+  const [isBrowseModalOpen, setIsBrowseModalOpen] = useState(false);
+  const [activeRepoIndex, setActiveRepoIndex] = useState(0);
+
   const [papers, setPapers] = useState([]);
   const [news, setNews] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -29,8 +37,33 @@ function App() {
   const [summary, setSummary] = useState('');
   const [summarizing, setSummarizing] = useState(false);
 
-  const [vault, setVault] = useLocalStorage('blueprint-vault', []);
+  const [vaultData, setVaultData] = useLocalStorage('blueprint-vault-data', {
+    lists: [{ id: 'default', name: 'General Bookmarks' }],
+    items: []
+  });
+  const [modalItem, setModalItem] = useState(null);
+
   const [theme, setTheme] = useLocalStorage('blueprint-theme', 'light');
+
+  // Migration effect for old flat array bookmarks
+  useEffect(() => {
+    const oldVaultStr = window.localStorage.getItem('blueprint-vault');
+    if (oldVaultStr) {
+      try {
+        const oldVault = JSON.parse(oldVaultStr);
+        if (Array.isArray(oldVault) && oldVault.length > 0) {
+          const migratedItems = oldVault.map(item => ({ ...item, listId: 'default' }));
+          setVaultData(prev => ({
+            lists: prev.lists,
+            items: [...prev.items, ...migratedItems]
+          }));
+          window.localStorage.removeItem('blueprint-vault');
+        }
+      } catch (e) {
+        console.error("Migration failed", e);
+      }
+    }
+  }, [setVaultData]);
 
   const [user, setUser] = useState(null);
   const [githubToken, setGithubToken] = useState(null);
@@ -45,6 +78,7 @@ function App() {
 
   // Auth Observer
   useEffect(() => {
+    if (!auth) return;
     return auth.onAuthStateChanged(async (firebaseUser) => {
       if (firebaseUser) {
         setUser(firebaseUser);
@@ -69,10 +103,27 @@ function App() {
           const cloudData = await pullFromCloud(id, githubToken);
 
           if (cloudData && cloudData.vault) {
-            // Merge logic: prefer cloud, but keep unique local items
-            const localMap = new Map(vault.map(item => [item.id, item]));
-            cloudData.vault.forEach(item => localMap.set(item.id, item));
-            setVault(Array.from(localMap.values()));
+            if (Array.isArray(cloudData.vault)) {
+              // Legacy generic pull
+              const localMap = new Map(vaultData.items.map(item => [item.id, item]));
+              cloudData.vault.forEach(item => {
+                item.listId = item.listId || 'default';
+                localMap.set(item.id, item);
+              });
+              setVaultData({ lists: vaultData.lists, items: Array.from(localMap.values()) });
+            } else if (cloudData.vault.items) {
+              // Merge objects
+              const localMap = new Map(vaultData.items.map(item => [item.id, item]));
+              cloudData.vault.items.forEach(item => localMap.set(item.id, item));
+
+              const localListMap = new Map(vaultData.lists.map(list => [list.id, list]));
+              cloudData.vault.lists.forEach(list => localListMap.set(list.id, list));
+
+              setVaultData({
+                lists: Array.from(localListMap.values()),
+                items: Array.from(localMap.values())
+              });
+            }
             setLastSynced(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
           }
           setSyncing(false);
@@ -126,6 +177,9 @@ function App() {
       const injectBranch = (items) => items.map(item => ({ ...item, branchId: activeBranch.id }));
 
       setRepos(injectBranch(repoData));
+      setVisibleHorizontalCount(5); // Reset pagination on branch change
+      setVisibleVerticalCount(10);
+      setActiveRepoIndex(0);
 
       const mergedPapers = isCS
         ? [...paperData.slice(0, 5), ...hfPaperData, ...paperData.slice(5)]
@@ -140,19 +194,41 @@ function App() {
 
 
 
-  const toggleBookmark = (item) => {
-    const isBookmarked = vault.some(v => v.id === item.id);
-    let newVault;
-    if (isBookmarked) {
-      newVault = vault.filter(v => v.id !== item.id);
-    } else {
-      newVault = [...vault, item];
-    }
-    setVault(newVault);
+  const isBookmarked = (id) => vaultData.items.some(v => v.id === id);
 
-    // Only sync if logged in and item is physically being saved/removed
+  const toggleBookmark = (item) => {
+    if (isBookmarked(item.id)) {
+      const newData = {
+        ...vaultData,
+        items: vaultData.items.filter(v => v.id !== item.id)
+      };
+      setVaultData(newData);
+      if (user && githubToken && gistId) triggerSync(newData);
+    } else {
+      setModalItem(item);
+    }
+  };
+
+  const handleSaveBookmark = (item, listId, newListName) => {
+    let newLists = [...vaultData.lists];
+    let finalListId = listId;
+
+    if (newListName) {
+      finalListId = Date.now().toString();
+      newLists.push({ id: finalListId, name: newListName });
+    }
+
+    const newItem = { ...item, listId: finalListId };
+    const newData = {
+      lists: newLists,
+      items: [...vaultData.items.filter(i => i.id !== item.id), newItem]
+    };
+
+    setVaultData(newData);
+    setModalItem(null);
+
     if (user && githubToken && gistId) {
-      triggerSync(newVault);
+      triggerSync(newData);
     }
   };
 
@@ -169,8 +245,6 @@ function App() {
     }, 1500);
   };
 
-  const isBookmarked = (id) => vault.some(v => v.id === id);
-
   const handleScrollRepos = (direction) => {
     if (scrollRef.current) {
       const scrollAmount = 340; // Card width + gap
@@ -181,6 +255,21 @@ function App() {
     }
   };
 
+  const handleScrollPanelOnScroll = (e) => {
+    const scrollLeft = e.target.scrollLeft;
+    const cardWidthWithGap = 340; // approximate
+    const newIndex = Math.round(scrollLeft / cardWidthWithGap);
+    if (newIndex !== activeRepoIndex) {
+      setActiveRepoIndex(newIndex);
+    }
+  };
+
+  const visibleRepos = repos.slice(0, visibleHorizontalCount);
+
+  if (!user) {
+    return <LoginPage onLogin={handleLogin} />;
+  }
+
   return (
     <div className="app-container" style={{ '--branch-accent': `var(--color-${activeBranch.id})` }}>
       {/* Header (Only on Home) */}
@@ -188,7 +277,10 @@ function App() {
         {activeTab === 'home' && (
           <header className="glass">
             <div className="header-top">
-              <h1 className="font-heading">The Blueprint</h1>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <img src={logo} alt="The Blueprint Logo" style={{ width: '32px', height: '32px', borderRadius: '8px' }} />
+                <h1 className="font-heading" style={{ margin: 0 }}>The Blueprint</h1>
+              </div>
               <div className="header-icons">
                 <button
                   onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')}
@@ -198,7 +290,7 @@ function App() {
                   {theme === 'light' ? <Moon size={20} className="text-dim" /> : <Sun size={20} className="text-dim" />}
                 </button>
 
-                {user ? (
+                {user && (
                   <div className="user-profile-nav">
                     {syncing && <Clock size={14} className="sync-spinner text-dim" />}
                     <div className="user-info-brief" onClick={() => setActiveTab('settings')}>
@@ -208,11 +300,6 @@ function App() {
                       </div>
                     </div>
                   </div>
-                ) : (
-                  <button className="btn-premium login-btn" onClick={handleLogin}>
-                    <Github size={14} />
-                    <span>Sign In</span>
-                  </button>
                 )}
               </div>
             </div>
@@ -261,7 +348,9 @@ function App() {
                 <div className="section-header">
                   <h2 className="font-heading">Trending Repositories</h2>
                   <div className="header-controls">
-                    <button className="header-action-btn">Browse {activeBranch.id.toUpperCase()}</button>
+                    <button className="header-action-btn" onClick={() => setIsBrowseModalOpen(true)}>
+                      Browse {activeBranch.id.toUpperCase()}
+                    </button>
                   </div>
                 </div>
                 {activeFilter.label === 'Daily' && (
@@ -269,22 +358,20 @@ function App() {
                     <span>📅 Showing top repos from the past 48h. Data refreshes daily at 6:00 PM.</span>
                   </div>
                 )}
+
                 <div className="carousel-wrapper">
-                  <button className="carousel-btn carousel-btn-left" onClick={() => handleScrollRepos('left')}>
-                    <ChevronLeft size={24} />
-                  </button>
-                  <div className="horizontal-scroll-container" ref={scrollRef}>
-                    <div className="horizontal-scroll">
+                  <div className="horizontal-scroll-container" ref={scrollRef} onScroll={handleScrollPanelOnScroll}>
+                    <div className="horizontal-scroll snap-x-mandatory">
                       {repos.length === 0 ? (
                         <p className="text-dim text-sm italic">No trending repos found this week.</p>
                       ) : (
-                        // Single mapping for manual scroll
-                        repos.map((repo, idx) => (
+                        visibleRepos.map((repo, idx) => (
                           <motion.div
                             key={`${repo.id}-${idx}`}
-                            className="card-premium repo-card"
+                            className="card-premium repo-card snap-center"
                             onClick={(e) => {
                               e.currentTarget.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+                              setActiveRepoIndex(idx);
                             }}
                           >
                             <div className="repo-header">
@@ -315,11 +402,44 @@ function App() {
                           </motion.div>
                         ))
                       )}
+
+                      {repos.length > visibleHorizontalCount && (
+                        <div
+                          className="card-premium repo-card view-more-card snap-center"
+                          onClick={() => setIsBrowseModalOpen(true)}
+                        >
+                          <Compass size={32} className="text-dim mb-2" />
+                          <h3 className="font-heading">View More</h3>
+                          <p className="text-dim text-xs">Browse all repositories</p>
+                        </div>
+                      )}
                     </div>
                   </div>
-                  <button className="carousel-btn carousel-btn-right" onClick={() => handleScrollRepos('right')} aria-label="Scroll Right">
-                    <ChevronRight size={20} />
-                  </button>
+
+                  {/* Dots Navigation */}
+                  <div className="repo-nav-footer">
+                    <button className="carousel-btn-inline" onClick={() => handleScrollRepos('left')}>
+                      <ChevronLeft size={20} />
+                    </button>
+
+                    <div className="repo-dots-container">
+                      {Array.from({ length: visibleRepos.length + (repos.length > visibleHorizontalCount ? 1 : 0) }).map((_, idx) => (
+                        <div
+                          key={idx}
+                          className={`repo-dot ${idx === activeRepoIndex ? 'active' : ''}`}
+                          onClick={() => {
+                            if (scrollRef.current) {
+                              scrollRef.current.scrollTo({ left: idx * 340, behavior: 'smooth' });
+                            }
+                          }}
+                        />
+                      ))}
+                    </div>
+
+                    <button className="carousel-btn-inline" onClick={() => handleScrollRepos('right')}>
+                      <ChevronRight size={20} />
+                    </button>
+                  </div>
                 </div>
               </section>
 
@@ -410,7 +530,13 @@ function App() {
             </>
           )
         ) : activeTab === 'vault' ? (
-          <VaultPage savedItems={vault} onRemove={(id) => setVault(vault.filter(v => v.id !== id))} />
+          <VaultPage
+            vaultData={vaultData}
+            onUpdateVault={(newData) => {
+              setVaultData(newData);
+              if (user && githubToken && gistId) triggerSync(newData);
+            }}
+          />
         ) : activeTab === 'explore' ? (
           <ExplorePage
             onSummarize={handleSummarize}
@@ -423,7 +549,7 @@ function App() {
             gistId={gistId}
             syncing={syncing}
             lastSynced={lastSynced}
-            onSync={() => triggerSync(vault)}
+            onSync={() => triggerSync(vaultData)}
             onLogout={() => {
               logout();
               setActiveTab('home');
@@ -436,6 +562,79 @@ function App() {
           </div>
         )}
       </main>
+
+      {/* Browse Modal Overlay (Vertical Repos List) */}
+      <AnimatePresence>
+        {isBrowseModalOpen && (
+          <motion.div
+            className="overlay glass"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setIsBrowseModalOpen(false)}
+            style={{ zIndex: 1200 }}
+          >
+            <motion.div
+              className="browse-modal card-premium"
+              initial={{ y: '100%', opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: '100%', opacity: 0 }}
+              transition={{ duration: 0.5, ease: [0.2, 0.8, 0.2, 1] }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="modal-header sticky-header">
+                <div>
+                  <h3 className="font-heading" style={{ fontSize: '24px' }}>Browse {activeBranch.id.toUpperCase()}</h3>
+                  <p className="text-dim text-sm">Trending Repositories ({activeFilter.label})</p>
+                </div>
+                <button className="btn-icon-sm" onClick={() => setIsBrowseModalOpen(false)}><X size={20} /></button>
+              </div>
+
+              <div className="browse-content vertical-stack p-md" style={{ overflowY: 'auto', maxHeight: '70vh' }}>
+                {repos.slice(0, visibleVerticalCount).map((repo, idx) => (
+                  <motion.div
+                    key={`${repo.id}-${idx}-vert`}
+                    className="card-premium repo-card-vertical"
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: idx * 0.05 }}
+                  >
+                    <div className="repo-header">
+                      <h3 className="repo-name" style={{ fontSize: '16px', margin: 0 }}>{repo.name}</h3>
+                      <div className="card-actions-row">
+                        <button
+                          className={`btn-icon-sm ${isBookmarked(repo.id) ? 'btn-saved' : ''}`}
+                          onClick={(e) => { e.stopPropagation(); toggleBookmark(repo); }}
+                        >
+                          <Bookmark size={16} className={isBookmarked(repo.id) ? 'icon-filled' : 'text-dim'} />
+                        </button>
+                        <a href={repo.url} target="_blank" rel="noreferrer">
+                          <ExternalLink size={16} className="icon-accent" />
+                        </a>
+                      </div>
+                    </div>
+                    <p className="repo-desc text-dim" style={{ fontSize: '13px', margin: '8px 0' }}>{repo.description || 'No description provided.'}</p>
+                    <div className="repo-stats font-mono" style={{ fontSize: '11px' }}>
+                      <span>★ {repo.stars}</span>
+                      <span>{repo.forks} forks</span>
+                      {repo.language && <span className="repo-lang">{repo.language}</span>}
+                    </div>
+                  </motion.div>
+                ))}
+
+                {repos.length > visibleVerticalCount && (
+                  <button
+                    className="btn-load-more"
+                    onClick={() => setVisibleVerticalCount(prev => prev + 5)}
+                  >
+                    Load More Repositories
+                  </button>
+                )}
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Summary Modal / Slide-up Overlay */}
       <AnimatePresence>
@@ -499,6 +698,17 @@ function App() {
         )}
       </AnimatePresence>
 
+      <AnimatePresence>
+        {modalItem && (
+          <BookmarkModal
+            vaultData={vaultData}
+            item={modalItem}
+            onClose={() => setModalItem(null)}
+            onSave={handleSaveBookmark}
+          />
+        )}
+      </AnimatePresence>
+
       {/* Bottom Navigation */}
       <nav className="bottom-nav">
         {[
@@ -511,6 +721,7 @@ function App() {
             key={item.id}
             onClick={() => {
               if (item.id === 'settings' && !user) {
+                // Should not happen as App requires login now, but safe fallback
                 handleLogin();
               } else {
                 setActiveTab(item.id);
