@@ -1,16 +1,79 @@
-# React + Vite
+# The Blueprint 🌌
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+**The Blueprint** is a premium, minimalist developer dashboard designed for modern engineers. It provides a curated feed of trending open-source repositories, latest research papers (arXiv, Hugging Face), and industry news, all wrapped in a sleek, glassmorphism-inspired interface.
 
-Currently, two official plugins are available:
+## ✨ Key Features
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+### 🌪️ Smart Trending Feed
+- **Carousel Navigation**: Browse through top GitHub repositories with smooth, floating side-navigation arrows.
+- **Deep Discovery**: Access up to 20 trending projects per category (Computer Science, Mechanical, Civil, etc.).
+- **Flexible Filters**: Toggle between Daily, Weekly, and Monthly trends to stay on top of the ecosystem.
 
-## React Compiler
+### ☁️ Cloud Sync & Security
+- **GitHub Gist Integration**: Your personal "Vault" of saved items is automatically synchronized to a private, version-controlled GitHub Gist.
+- **Transparent Status**: Real-time sync indicators with direct links to your cloud data.
+- **Secure Architecture**: Strictly follows security best practices by utilizing environment variables for all sensitive API credentials.
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+### 👤 Integrated Profile System
+- **Standalone Management**: A dedicated profile page for managing account settings, sync status, and cloud references.
+- **Theme-Aware UI**: Fully optimized for both sleek Dark Mode and clean Light Mode.
 
-## Expanding the ESLint configuration
+### 📱 Responsive Design
+- **Mobile-First**: Smooth vertical and horizontal scrolling optimized for all device sizes, from mobile phones to high-res monitors.
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+## 🚀 Getting Started
+
+### Prerequisites
+- Node.js (v18+)
+- npm or yarn
+- A Firebase project (for Auth)
+- A GitHub Personal Access Token (or using the integrated OAuth flow)
+
+### Installation
+
+1. **Clone the repository**:
+   ```bash
+   git clone https://github.com/jayasriganesh/The-Blueprint.git
+   cd the-blueprint
+   ```
+
+2. **Install dependencies**:
+   ```bash
+   npm install
+   ```
+
+3. **Configure Environment Variables**:
+   Create a `.env.local` file in the root directory and add your Firebase credentials:
+   ```env
+   VITE_FIREBASE_API_KEY=your_key
+   VITE_FIREBASE_AUTH_DOMAIN=your_domain
+   VITE_FIREBASE_PROJECT_ID=your_id
+   VITE_FIREBASE_STORAGE_BUCKET=your_bucket
+   VITE_FIREBASE_MESSAGING_SENDER_ID=your_sender_id
+   VITE_FIREBASE_APP_ID=your_app_id
+   ```
+
+4. **Run in Development**:
+   ```bash
+   npm run dev
+   ```
+
+### Deployment
+
+The project is configured for seamless deployment to **GitHub Pages**:
+```bash
+npm run deploy
+```
+
+## 🛠️ Built With
+
+- **React 19**: Modern UI library for a fast, component-driven experience.
+- **Vite**: Ultra-fast build tool and development server.
+- **Lucide React**: Beautiful, consistent iconography.
+- **Framer Motion**: Smooth, high-performance micro-animations.
+- **Firebase**: Secure authentication and backend services.
+- **GitHub API**: Real-time data fetching and Gist-based cloud storage.
+
+## 📄 License
+
+This project is open-source and available under the MIT License.
