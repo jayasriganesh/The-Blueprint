@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { LayoutGrid, Compass, Bookmark, Settings, Search, Clock, ChevronRight, Share2, BookOpen, ExternalLink, X, Sun, Moon, Github, Cloud } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { LayoutGrid, Compass, Bookmark, Settings, Search, Clock, ChevronRight, ChevronLeft, Share2, BookOpen, ExternalLink, X, Sun, Moon, Github, Cloud } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { branches, timeFilters } from './data/config';
 import { fetchTrendingRepos } from './services/github';
@@ -37,6 +37,7 @@ function App() {
   const [gistId, setGistId] = useState(null);
   const [syncing, setSyncing] = useState(false);
   const [lastSynced, setLastSynced] = useState(null);
+  const scrollRef = useRef(null);
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
@@ -170,6 +171,16 @@ function App() {
 
   const isBookmarked = (id) => vault.some(v => v.id === id);
 
+  const handleScrollRepos = (direction) => {
+    if (scrollRef.current) {
+      const scrollAmount = 340; // Card width + gap
+      scrollRef.current.scrollBy({
+        left: direction === 'left' ? -scrollAmount : scrollAmount,
+        behavior: 'smooth'
+      });
+    }
+  };
+
   return (
     <div className="app-container" style={{ '--branch-accent': `var(--color-${activeBranch.id})` }}>
       {/* Header (Only on Home) */}
@@ -249,56 +260,66 @@ function App() {
               <section className="feed-section animate-fade-in">
                 <div className="section-header">
                   <h2 className="font-heading">Trending Repositories</h2>
-                  <button className="header-action-btn">Browse {activeBranch.id.toUpperCase()}</button>
+                  <div className="header-controls">
+                    <button className="header-action-btn">Browse {activeBranch.id.toUpperCase()}</button>
+                  </div>
                 </div>
                 {activeFilter.label === 'Daily' && (
                   <div className="daily-notice">
                     <span>📅 Showing top repos from the past 48h. Data refreshes daily at 6:00 PM.</span>
                   </div>
                 )}
-                <div className="horizontal-scroll-container">
-                  <div className="horizontal-scroll">
-                    {repos.length === 0 ? (
-                      <p className="text-dim text-sm italic">No trending repos found this week.</p>
-                    ) : (
-                      // Single mapping for manual scroll
-                      repos.map((repo, idx) => (
-                        <motion.div
-                          key={`${repo.id}-${idx}`}
-                          className="card-premium repo-card"
-                          onClick={(e) => {
-                            e.currentTarget.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
-                          }}
-                        >
-                          <div className="repo-header">
-                            <div className={`branch-tag branch-tag-${activeBranch.id}`}>{activeBranch.id.toUpperCase()}</div>
-                            <div className="card-actions-row">
-                              <button
-                                className={`btn-icon-sm ${isBookmarked(repo.id) ? 'btn-saved' : ''}`}
-                                onClick={(e) => { e.stopPropagation(); toggleBookmark(repo); }}
-                                title={isBookmarked(repo.id) ? 'Saved to Vault' : 'Save to Vault'}
-                              >
-                                <Bookmark
-                                  size={16}
-                                  className={isBookmarked(repo.id) ? 'icon-filled' : 'text-dim'}
-                                />
-                              </button>
-                              <a href={repo.url} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()}>
-                                <ExternalLink size={16} className="icon-accent" />
-                              </a>
+                <div className="carousel-wrapper">
+                  <button className="carousel-btn carousel-btn-left" onClick={() => handleScrollRepos('left')}>
+                    <ChevronLeft size={24} />
+                  </button>
+                  <div className="horizontal-scroll-container" ref={scrollRef}>
+                    <div className="horizontal-scroll">
+                      {repos.length === 0 ? (
+                        <p className="text-dim text-sm italic">No trending repos found this week.</p>
+                      ) : (
+                        // Single mapping for manual scroll
+                        repos.map((repo, idx) => (
+                          <motion.div
+                            key={`${repo.id}-${idx}`}
+                            className="card-premium repo-card"
+                            onClick={(e) => {
+                              e.currentTarget.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+                            }}
+                          >
+                            <div className="repo-header">
+                              <div className={`branch-tag branch-tag-${activeBranch.id}`}>{activeBranch.id.toUpperCase()}</div>
+                              <div className="card-actions-row">
+                                <button
+                                  className={`btn-icon-sm ${isBookmarked(repo.id) ? 'btn-saved' : ''}`}
+                                  onClick={(e) => { e.stopPropagation(); toggleBookmark(repo); }}
+                                  title={isBookmarked(repo.id) ? 'Saved to Vault' : 'Save to Vault'}
+                                >
+                                  <Bookmark
+                                    size={16}
+                                    className={isBookmarked(repo.id) ? 'icon-filled' : 'text-dim'}
+                                  />
+                                </button>
+                                <a href={repo.url} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()}>
+                                  <ExternalLink size={16} className="icon-accent" />
+                                </a>
+                              </div>
                             </div>
-                          </div>
-                          <h3 className="repo-name">{repo.name}</h3>
-                          <p className="repo-desc text-dim">{repo.description || 'No description provided.'}</p>
-                          <div className="repo-stats font-mono">
-                            <span>★ {repo.stars}</span>
-                            <span>{repo.forks} forks</span>
-                            {repo.language && <span className="repo-lang">{repo.language}</span>}
-                          </div>
-                        </motion.div>
-                      ))
-                    )}
+                            <h3 className="repo-name">{repo.name}</h3>
+                            <p className="repo-desc text-dim">{repo.description || 'No description provided.'}</p>
+                            <div className="repo-stats font-mono">
+                              <span>★ {repo.stars}</span>
+                              <span>{repo.forks} forks</span>
+                              {repo.language && <span className="repo-lang">{repo.language}</span>}
+                            </div>
+                          </motion.div>
+                        ))
+                      )}
+                    </div>
                   </div>
+                  <button className="carousel-btn carousel-btn-right" onClick={() => handleScrollRepos('right')} aria-label="Scroll Right">
+                    <ChevronRight size={20} />
+                  </button>
                 </div>
               </section>
 

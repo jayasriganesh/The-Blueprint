@@ -14,7 +14,7 @@ export const fetchTrendingRepos = async (topic, days = 7) => {
 
         // GitHub API Query: topic + active (pushed) within window + sort by stars
         const query = `topic:${topic} pushed:>${dateString}`;
-        const url = `https://api.github.com/search/repositories?q=${encodeURIComponent(query)}&sort=stars&order=desc&per_page=10`;
+        const url = `https://api.github.com/search/repositories?q=${encodeURIComponent(query)}&sort=stars&order=desc&per_page=20`;
 
         const response = await fetch(url);
         if (!response.ok) throw new Error('GitHub API failed');
@@ -40,7 +40,7 @@ export const fetchTrendingRepos = async (topic, days = 7) => {
 };
 export const searchRepos = async (query) => {
     try {
-        const url = `https://api.github.com/search/repositories?q=${encodeURIComponent(query)}&sort=stars&order=desc&per_page=10`;
+        const url = `https://api.github.com/search/repositories?q=${encodeURIComponent(query)}&sort=stars&order=desc&per_page=20`;
         const response = await fetch(url);
         if (!response.ok) throw new Error('GitHub Search API failed');
         const data = await response.json();

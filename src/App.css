@@ -132,13 +132,86 @@ header {
 .section-header {
   display: flex;
   justify-content: space-between;
-  align-items: baseline;
+  align-items: center;
   margin-bottom: var(--spacing-lg);
 }
 
 .section-header h2 {
   font-size: 28px;
   font-weight: 400;
+}
+
+.header-controls {
+  display: flex;
+  align-items: center;
+}
+
+.carousel-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.carousel-nav {
+  display: none;
+  /* Moved to absolute positioning */
+}
+
+.carousel-btn {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-full);
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  color: var(--text-main);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: var(--transition-smooth);
+  z-index: 10;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  opacity: 1;
+  /* Always visible for better UX */
+}
+
+.carousel-btn-left {
+  left: 10px;
+}
+
+.carousel-btn-right {
+  right: 10px;
+}
+
+.carousel-btn:hover {
+  background: var(--bg-elevated);
+  border-color: var(--branch-accent);
+  color: var(--branch-accent);
+  transform: translateY(-50%) scale(1.1);
+}
+
+.carousel-btn:active {
+  transform: translateY(-50%) scale(0.9);
+}
+
+/* Ensure arrows are visible on mobile but subtle */
+@media (max-width: 768px) {
+  .carousel-btn {
+    width: 32px;
+    height: 32px;
+    opacity: 0.7;
+  }
+
+  .carousel-btn-left {
+    left: 4px;
+  }
+
+  .carousel-btn-right {
+    right: 4px;
+  }
 }
 
 .header-action-btn {
